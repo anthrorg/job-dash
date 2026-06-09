@@ -420,7 +420,9 @@ document.querySelectorAll('#appFilters button').forEach(b => b.onclick = () => {
 /* ---------- Social posts ---------- */
 $('pDate').value = today();
 function renderPlatformSelect() {
-  $('pPlatform').innerHTML = data.platforms.map(p => '<option>' + esc(p) + '</option>').join('');
+  const sel = $('pPlatform').value;
+  $('pPlatform').innerHTML = data.platforms.map(p =>
+    '<option' + (p === sel ? ' selected' : '') + '>' + esc(p) + '</option>').join('');
 }
 $('pNewPlatform').onchange = () => {
   const p = $('pNewPlatform').value.trim();

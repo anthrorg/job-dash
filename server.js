@@ -56,6 +56,6 @@ app.use((err, req, res, next) => {
 const port = process.env.PORT || 3000;
 db.init()
   .then(() => app.listen(port, () => console.log('Job Search HQ listening on :' + port)))
-  .catch(e => { console.error('Database init failed:', e.message); process.exit(1); });
+  .catch(e => { console.error('Database init failed:', e); process.exit(1); });
 
 module.exports = app;
