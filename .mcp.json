@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@playwright/mcp@latest",
+        "--output-dir",
+        ".playwright-mcp"
+      ]
+    },
+    "railway": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@railway/mcp-server"]
+    }
+  }
+}

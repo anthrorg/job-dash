@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in — Job Search HQ</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #fdf4ff 0%, #fff7ed 45%, #ecfeff 100%) fixed;
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #2a2438;
+    padding: 16px;
+  }
+  .card {
+    background: #fff; border: 1px solid #ece8f6; border-top: 5px solid #f43f5e;
+    border-radius: 16px; padding: 28px; width: 100%; max-width: 380px;
+    box-shadow: 0 8px 30px rgba(124, 58, 237, .12);
+  }
+  h1 {
+    font-size: 24px; margin: 0 0 2px; font-weight: 800; letter-spacing: -.02em;
+    background: linear-gradient(90deg, #f43f5e, #8b5cf6 55%, #14b8a6);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .sub { color: #7c7691; font-size: 13px; margin-bottom: 18px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs button {
+    flex: 1; padding: 8px; border: 1px solid #ece8f6; background: #fff; border-radius: 999px;
+    cursor: pointer; font-size: 13.5px; color: #7c7691; font-weight: 600;
+  }
+  .tabs button.active { background: linear-gradient(90deg, #f43f5e, #8b5cf6); color: #fff; border-color: transparent; }
+  label { display: block; font-size: 12px; font-weight: 700; color: #7c7691; text-transform: uppercase; letter-spacing: .04em; margin: 12px 0 4px; }
+  input {
+    width: 100%; font: inherit; padding: 10px 12px; border: 1px solid #ece8f6; border-radius: 10px;
+  }
+  input:focus { outline: 2px solid #ddd6fe; border-color: #8b5cf6; }
+  button.go {
+    width: 100%; margin-top: 18px; padding: 11px; border: none; border-radius: 999px; cursor: pointer;
+    background: linear-gradient(90deg, #f43f5e, #ec4899); color: #fff; font-size: 15px; font-weight: 700;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, .35);
+  }
+  button.go:hover { filter: brightness(1.07); }
+  .err { color: #dc2626; font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .invite-only { display: none; }
+  body.register .invite-only { display: block; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Job Search HQ</h1>
+  <div class="sub">Track the pipeline. Land the role.</div>
+  <div class="tabs">
+    <button id="tabLogin" class="active">Sign in</button>
+    <button id="tabRegister">Create account</button>
+  </div>
+  <form id="form">
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" minlength="8" required>
+    <div class="invite-only">
+      <label for="invite">Invite code</label>
+      <input id="invite" type="text" autocomplete="off">
+    </div>
+    <button class="go" id="go">Sign in</button>
+    <div class="err" id="err"></div>
+  </form>
+</div>
+<script>
+'use strict';
+let mode = 'login';
+const $ = id => document.getElementById(id);
+function setMode(m) {
+  mode = m;
+  document.body.classList.toggle('register', m === 'register');
+  $('tabLogin').classList.toggle('active', m === 'login');
+  $('tabRegister').classList.toggle('active', m === 'register');
+  $('go').textContent = m === 'login' ? 'Sign in' : 'Create account';
+  $('password').autocomplete = m === 'login' ? 'current-password' : 'new-password';
+  $('err').textContent = '';
+}
+$('tabLogin').onclick = e => { e.preventDefault(); setMode('login'); };
+$('tabRegister').onclick = e => { e.preventDefault(); setMode('register'); };
+$('form').onsubmit = async e => {
+  e.preventDefault();
+  $('err').textContent = '';
+  $('go').disabled = true;
+  try {
+    const body = { email: $('email').value.trim(), password: $('password').value };
+    if (mode === 'register') body.invite = $('invite').value.trim();
+    const r = await fetch('/api/auth/' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Something went wrong.');
+    location.href = '/';
+  } catch (err) {
+    $('err').textContent = err.message;
+  } finally {
+    $('go').disabled = false;
+  }
+};
+// Already signed in? Go straight to the dashboard.
+fetch('/api/auth/me').then(r => { if (r.ok) location.href = '/'; });
+</script>
+</body>
+</html>

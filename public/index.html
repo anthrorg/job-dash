@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Search HQ</title>
+<style>
+  :root {
+    color-scheme: light;
+    --card: #ffffff; --border: #ece8f6; --text: #2a2438; --muted: #7c7691;
+    --pink: #ec4899; --coral: #f43f5e; --orange: #f97316; --yellow: #eab308;
+    --green: #16a34a; --teal: #14b8a6; --blue: #3b82f6; --purple: #8b5cf6;
+    --red: #ef4444; --amber: #d97706; --gray: #9ca3af;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px;
+    background: linear-gradient(160deg, #fdf4ff 0%, #fff7ed 45%, #ecfeff 100%) fixed;
+    color: var(--text);
+    font: 14px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  h1 {
+    font-size: 22px; margin: 0; font-weight: 800; letter-spacing: -.02em;
+    background: linear-gradient(90deg, var(--coral), var(--purple) 55%, var(--teal));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h2 { font-size: 15px; margin: 0 0 10px; font-weight: 700; }
+  .sub { color: var(--muted); font-size: 12.5px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 14px;
+    box-shadow: 0 2px 10px rgba(124, 58, 237, .06);
+    border-top: 4px solid var(--purple);
+  }
+  header.card { border-top-color: var(--coral); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+  #appsPanel { border-top-color: var(--blue); }
+  #postsPanel { border-top-color: var(--teal); }
+
+  .stats { display: flex; gap: 10px; flex-wrap: wrap; }
+  .stat { text-align: center; padding: 7px 14px; border-radius: 12px; }
+  .stat b { display: block; font-size: 19px; }
+  .stat span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .stat:nth-child(1) { background: #eff6ff; } .stat:nth-child(1) b { color: var(--blue); }
+  .stat:nth-child(2) { background: #fdf4ff; } .stat:nth-child(2) b { color: var(--purple); }
+  .stat:nth-child(3) { background: #fff7ed; } .stat:nth-child(3) b { color: var(--orange); }
+  .stat:nth-child(4) { background: #f0fdf4; } .stat:nth-child(4) b { color: var(--green); }
+  .stat:nth-child(5) { background: #fdf2f8; } .stat:nth-child(5) b { color: var(--pink); }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button {
+    padding: 8px 18px; border: 1px solid var(--border); background: var(--card);
+    border-radius: 999px; cursor: pointer; font-size: 13.5px; color: var(--muted); font-weight: 600;
+  }
+  .tabs button.active {
+    background: linear-gradient(90deg, var(--coral), var(--purple));
+    color: #fff; border-color: transparent;
+    box-shadow: 0 3px 8px rgba(236, 72, 153, .3);
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 6px 8px; border-bottom: 2px solid var(--border); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+
+  input, select, textarea {
+    font: inherit; color: inherit; background: #fff;
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #ddd6fe; border-color: var(--purple); }
+  input.num { width: 80px; text-align: right; }
+  input.bare { border-color: transparent; background: transparent; width: 100%; padding: 4px 6px; }
+  input.bare:hover { border-color: var(--border); }
+  input.bare:focus { background: #fff; border-color: var(--purple); }
+
+  .addform { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .addform input, .addform select { flex: 1 1 120px; min-width: 0; }
+  .addform input.short { flex: 0 1 130px; }
+  label.check { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+
+  button.btn {
+    padding: 8px 18px; border: none; border-radius: 999px; cursor: pointer;
+    background: linear-gradient(90deg, var(--coral), var(--pink));
+    color: #fff; font-size: 13.5px; font-weight: 700;
+    box-shadow: 0 3px 8px rgba(244, 63, 94, .3);
+  }
+  button.btn:hover { filter: brightness(1.07); }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; box-shadow: none; }
+  button.del { background: none; border: none; color: var(--gray); cursor: pointer; font-size: 15px; padding: 2px 6px; }
+  button.del:hover { color: var(--red); }
+
+  .filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .filters button { padding: 4px 12px; font-size: 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; color: var(--muted); cursor: pointer; font-weight: 600; }
+  .filters button.on { background: linear-gradient(90deg, #ede9fe, #fce7f3); border-color: var(--purple); color: #6d28d9; }
+
+  select.status { border-radius: 999px; font-size: 12.5px; padding: 4px 8px; font-weight: 600; }
+  select.s-active { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+  select.s-offer { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+  select.s-rejected { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+  select.s-ghosted { background: #f4f4f5; border-color: #e4e4e7; color: #52525b; }
+  select.s-withdrawn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+
+  .recbtn {
+    border: 1px dashed #f9a8d4; background: #fff; color: var(--pink);
+    border-radius: 999px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; font-weight: 600;
+  }
+  .recbtn.has { border-style: solid; background: #fdf2f8; color: #be185d; }
+  .recbtn:hover { background: #fce7f3; }
+  tr.recrow td { background: linear-gradient(90deg, #fdf2f8, #fdf4ff); }
+  .recform { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 2px; }
+  .recform input { flex: 1 1 140px; min-width: 0; background: #fff; }
+  .recform input.short { flex: 0 1 150px; }
+  .recform .lbl { font-size: 11px; color: #be185d; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .reclink { background: none; border: none; color: var(--pink); cursor: pointer; font-size: 12px; text-decoration: underline; }
+  .contact-warn { color: var(--amber); font-size: 11px; font-weight: 600; }
+
+  .stale { color: var(--amber); font-size: 11.5px; font-weight: 600; }
+  .empty { color: var(--muted); text-align: center; padding: 30px 10px; }
+  #sankeyWrap { width: 100%; overflow-x: auto; }
+  svg text { font-family: inherit; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  a { color: var(--purple); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .small { font-size: 12px; color: var(--muted); }
+  #saveState { font-size: 12px; color: var(--muted); min-width: 60px; text-align: right; }
+  #saveState.err { color: var(--red); font-weight: 600; }
+
+  /* Import modal */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(42, 36, 56, .45);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 16px; padding: 20px; width: 100%; max-width: 560px;
+    border-top: 5px solid var(--teal); box-shadow: 0 12px 40px rgba(42, 36, 56, .3);
+  }
+  .modal textarea { width: 100%; height: 160px; font: 12px/1.4 ui-monospace, Consolas, monospace; resize: vertical; }
+  .modal .row { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+  #importStatus { font-size: 12.5px; margin-top: 10px; min-height: 18px; }
+  #importStatus.ok { color: var(--green); font-weight: 600; }
+  #importStatus.err { color: var(--red); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="card">
+  <div>
+    <h1>Job Search HQ</h1>
+    <div class="sub" id="todayLine"></div>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="toolbar">
+    <span id="saveState"></span>
+    <button class="btn ghost" id="importOpen" title="Import applications or posts from JSON">Import</button>
+    <button class="btn ghost" id="exportBtn" title="Download a JSON backup of all data">Backup</button>
+    <button class="btn ghost" id="logoutBtn">Log out</button>
+  </div>
+</header>
+
+<div class="card">
+  <h2>Pipeline — where every application stands</h2>
+  <div id="sankeyWrap"></div>
+</div>
+
+<div class="tabs">
+  <button id="tabApps">Applications</button>
+  <button id="tabPosts">Social Posts</button>
+</div>
+
+<div class="card" id="appsPanel">
+  <h2>Log an application</h2>
+  <div class="addform">
+    <input id="aCompany" placeholder="Company *">
+    <input id="aRole" placeholder="Role *">
+    <input id="aLink" placeholder="Posting URL (optional)">
+    <input id="aDate" type="date" class="short">
+    <label class="check"><input type="checkbox" id="aRecruiter"> via recruiter</label>
+    <button class="btn" id="addApp">Add</button>
+  </div>
+  <div class="filters" id="appFilters">
+    <button data-f="all">All</button>
+    <button data-f="active">Active</button>
+    <button data-f="closed">Closed</button>
+    <button data-f="recruiter">Via recruiter</button>
+  </div>
+  <div id="appsTable"></div>
+</div>
+
+<div class="card" id="postsPanel">
+  <h2>Log a post</h2>
+  <div class="addform">
+    <input id="pDate" type="date" class="short">
+    <select id="pPlatform"></select>
+    <input id="pNewPlatform" placeholder="+ new platform" class="short">
+    <input id="pTitle" placeholder="Post topic / link *">
+    <button class="btn" id="addPost">Add</button>
+  </div>
+  <div class="small" style="margin-bottom:8px">Update the numbers below anytime — edits save automatically.</div>
+  <div id="postsTable"></div>
+</div>
+
+<div class="overlay" id="importModal">
+  <div class="modal">
+    <h2>Import data</h2>
+    <div class="small" style="margin-bottom:10px">
+      Paste JSON below or choose a .json file. Accepts this app's backups, plus generic lists of
+      applications or posts (LinkedIn-style fields like <i>text, views, likes, companyName, title</i> are recognized).
+      Duplicates are skipped.
+    </div>
+    <textarea id="importText" placeholder='[{"date":"2026-06-01","text":"My post","views":1200,"likes":40,"comments":6}]'></textarea>
+    <div class="row">
+      <input type="file" id="importFile" accept=".json,application/json">
+    </div>
+    <div id="importStatus"></div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn ghost" id="importCancel">Close</button>
+      <button class="btn" id="importGo">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const PREF = 'jobhunt_pref_';
+const STAGES = ['Applied', 'Recruiter Screen', 'Interview', 'Final Round', 'Offer'];
+const EXITS = { rejected: 'Rejected', ghosted: 'Ghosted', withdrawn: 'Withdrawn' };
+
+let data = { apps: [], posts: [], platforms: ['LinkedIn'] };
+
+const $ = id => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const today = () => new Date().toISOString().slice(0, 10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const daysAgo = d => Math.floor((Date.now() - new Date(d + 'T12:00')) / 864e5);
+
+let appFilter = localStorage.getItem(PREF + 'filter') || 'all';
+let tab = localStorage.getItem(PREF + 'tab') || 'apps';
+const expanded = new Set();
+
+/* ---------- Server sync ---------- */
+let saveTimer = null, retryTimer = null;
+function save() { render(); markDirty(); }
+function markDirty() {
+  $('saveState').textContent = 'Saving…';
+  $('saveState').classList.remove('err');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(pushState, 600);
+}
+async function pushState() {
+  clearTimeout(retryTimer);
+  try {
+    const r = await fetch('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (r.status === 401) { location.href = '/login.html'; return; }
+    if (!r.ok) throw new Error('save failed');
+    $('saveState').textContent = 'Saved';
+    $('saveState').classList.remove('err');
+  } catch (e) {
+    $('saveState').textContent = 'Offline — retrying';
+    $('saveState').classList.add('err');
+    retryTimer = setTimeout(pushState, 4000);
+  }
+}
+async function boot() {
+  try {
+    const r = await fetch('/api/state');
+    if (r.status === 401) { location.href = '/login.html'; return; }
+    if (!r.ok) throw new Error('load failed');
+    const d = await r.json();
+    data = {
+      apps: Array.isArray(d.apps) ? d.apps : [],
+      posts: Array.isArray(d.posts) ? d.posts : [],
+      platforms: Array.isArray(d.platforms) && d.platforms.length ? d.platforms : ['LinkedIn']
+    };
+    render();
+  } catch (e) {
+    $('sankeyWrap').innerHTML = '<div class="empty">Could not reach the server. Refresh to retry.</div>';
+  }
+}
+
+/* ---------- Applications ---------- */
+$('aDate').value = today();
+$('addApp').onclick = () => {
+  const company = $('aCompany').value.trim(), role = $('aRole').value.trim();
+  if (!company || !role) { alert('Company and role are required.'); return; }
+  const id = uid();
+  data.apps.unshift({
+    id, company, role,
+    link: $('aLink').value.trim(),
+    dateApplied: $('aDate').value || today(),
+    stage: 0, outcome: 'active',
+    recruiter: $('aRecruiter').checked ? { name: '', profile: '', email: '', phone: '', lastContacted: '' } : null,
+    notes: '', updated: today()
+  });
+  if ($('aRecruiter').checked) expanded.add(id);
+  $('aCompany').value = $('aRole').value = $('aLink').value = '';
+  $('aDate').value = today(); $('aRecruiter').checked = false;
+  save();
+};
+
+function statusValue(a) { return a.outcome === 'active' ? 'stage:' + a.stage : 'exit:' + a.outcome; }
+function statusClass(a) {
+  if (a.outcome !== 'active') return 's-' + a.outcome;
+  return a.stage === 4 ? 's-offer' : 's-active';
+}
+function setStatus(id, val) {
+  const a = data.apps.find(x => x.id === id); if (!a) return;
+  if (val.startsWith('stage:')) { a.stage = +val.slice(6); a.outcome = 'active'; }
+  else { a.outcome = val.slice(5); }
+  a.updated = today();
+  save();
+}
+
+function recCell(a) {
+  if (!a.recruiter) {
+    return '<button class="recbtn" onclick="addRecruiter(\'' + a.id + '\')">+ recruiter</button>';
+  }
+  const r = a.recruiter;
+  const name = r.name ? esc(r.name) : 'recruiter';
+  let warn = '';
+  if (a.outcome === 'active' && r.lastContacted) {
+    const d = daysAgo(r.lastContacted);
+    if (d >= 7) warn = '<br><span class="contact-warn">' + d + 'd since contact</span>';
+  } else if (a.outcome === 'active' && !r.lastContacted) {
+    warn = '<br><span class="contact-warn">never contacted</span>';
+  }
+  return '<button class="recbtn has" onclick="toggleRec(\'' + a.id + '\')" title="Open recruiter details">&#9734; ' + name + '</button>' + warn;
+}
+
+function recDetailRow(a) {
+  const r = a.recruiter;
+  return '<tr class="recrow"><td colspan="7"><div class="recform">' +
+    '<span class="lbl">Recruiter</span>' +
+    '<input class="short" placeholder="Name" value="' + esc(r.name) + '" onchange="editRec(\'' + a.id + '\',\'name\',this.value)">' +
+    '<input placeholder="Profile page (LinkedIn etc.)" value="' + esc(r.profile) + '" onchange="editRec(\'' + a.id + '\',\'profile\',this.value)">' +
+    '<input class="short" placeholder="Email" value="' + esc(r.email) + '" onchange="editRec(\'' + a.id + '\',\'email\',this.value)">' +
+    '<input class="short" placeholder="Phone" value="' + esc(r.phone) + '" onchange="editRec(\'' + a.id + '\',\'phone\',this.value)">' +
+    '<span class="lbl">Last contacted</span>' +
+    '<input type="date" class="short" value="' + esc(r.lastContacted) + '" onchange="editRec(\'' + a.id + '\',\'lastContacted\',this.value)">' +
+    '<button class="reclink" onclick="editRec(\'' + a.id + '\',\'lastContacted\',\'' + today() + '\')">contacted today</button>' +
+    (r.profile ? '<a href="' + esc(r.profile) + '" target="_blank" rel="noopener">open profile</a>' : '') +
+    '<button class="reclink" onclick="removeRecruiter(\'' + a.id + '\')">remove</button>' +
+    '</div></td></tr>';
+}
+
+function renderApps() {
+  document.querySelectorAll('#appFilters button').forEach(b =>
+    b.classList.toggle('on', b.dataset.f === appFilter));
+  let apps = data.apps.slice();
+  if (appFilter === 'active') apps = apps.filter(a => a.outcome === 'active');
+  if (appFilter === 'closed') apps = apps.filter(a => a.outcome !== 'active');
+  if (appFilter === 'recruiter') apps = apps.filter(a => a.recruiter);
+  apps.sort((x, y) => (y.updated || '').localeCompare(x.updated || ''));
+
+  if (!apps.length) {
+    $('appsTable').innerHTML = '<div class="empty">No applications here yet. Log one above — the Sankey builds itself as statuses change.</div>';
+    return;
+  }
+  let h = '<table><tr><th>Company / Role</th><th>Applied</th><th>Status</th><th>Recruiter</th><th>Last update</th><th>Notes</th><th></th></tr>';
+  for (const a of apps) {
+    const name = a.link
+      ? '<a href="' + esc(a.link) + '" target="_blank" rel="noopener"><b>' + esc(a.company) + '</b></a>'
+      : '<b>' + esc(a.company) + '</b>';
+    const d = daysAgo(a.updated || a.dateApplied);
+    const stale = a.outcome === 'active' && d >= 7 ? ' <span class="stale">stale — follow up?</span>' : '';
+    let opts = STAGES.map((s, i) =>
+      '<option value="stage:' + i + '"' + (statusValue(a) === 'stage:' + i ? ' selected' : '') + '>' + s + '</option>').join('');
+    opts += Object.entries(EXITS).map(([k, v]) =>
+      '<option value="exit:' + k + '"' + (statusValue(a) === 'exit:' + k ? ' selected' : '') + '>' + v + '</option>').join('');
+    h += '<tr>' +
+      '<td>' + name + '<br><span class="small">' + esc(a.role) + '</span></td>' +
+      '<td class="small">' + esc(a.dateApplied) + '</td>' +
+      '<td><select class="status ' + statusClass(a) + '" onchange="setStatus(\'' + a.id + '\', this.value)">' + opts + '</select></td>' +
+      '<td>' + recCell(a) + '</td>' +
+      '<td class="small">' + (d === 0 ? 'today' : d + 'd ago') + stale + '</td>' +
+      '<td><input class="bare" value="' + esc(a.notes) + '" placeholder="notes…" onchange="editApp(\'' + a.id + '\',\'notes\',this.value)"></td>' +
+      '<td><button class="del" title="Delete" onclick="delApp(\'' + a.id + '\')">&times;</button></td>' +
+      '</tr>';
+    if (a.recruiter && expanded.has(a.id)) h += recDetailRow(a);
+  }
+  $('appsTable').innerHTML = h + '</table>';
+}
+function editApp(id, field, val) {
+  const a = data.apps.find(x => x.id === id);
+  if (a) { a[field] = val; save(); }
+}
+function delApp(id) {
+  const a = data.apps.find(x => x.id === id);
+  if (a && confirm('Delete ' + a.company + ' — ' + a.role + '?')) {
+    data.apps = data.apps.filter(x => x.id !== id); save();
+  }
+}
+function addRecruiter(id) {
+  const a = data.apps.find(x => x.id === id); if (!a) return;
+  a.recruiter = { name: '', profile: '', email: '', phone: '', lastContacted: '' };
+  expanded.add(id);
+  save();
+}
+function removeRecruiter(id) {
+  const a = data.apps.find(x => x.id === id); if (!a) return;
+  if (confirm('Remove recruiter info from ' + a.company + '?')) {
+    a.recruiter = null; expanded.delete(id); save();
+  }
+}
+function toggleRec(id) {
+  expanded.has(id) ? expanded.delete(id) : expanded.add(id);
+  renderApps();
+}
+function editRec(id, field, val) {
+  const a = data.apps.find(x => x.id === id);
+  if (a && a.recruiter) { a.recruiter[field] = val; save(); }
+}
+document.querySelectorAll('#appFilters button').forEach(b => b.onclick = () => {
+  appFilter = b.dataset.f; localStorage.setItem(PREF + 'filter', appFilter); renderApps();
+});
+
+/* ---------- Social posts ---------- */
+$('pDate').value = today();
+function renderPlatformSelect() {
+  $('pPlatform').innerHTML = data.platforms.map(p => '<option>' + esc(p) + '</option>').join('');
+}
+$('pNewPlatform').onchange = () => {
+  const p = $('pNewPlatform').value.trim();
+  if (p && !data.platforms.includes(p)) { data.platforms.push(p); }
+  $('pNewPlatform').value = '';
+  renderPlatformSelect();
+  if (p) $('pPlatform').value = p;
+  save();
+};
+$('addPost').onclick = () => {
+  const title = $('pTitle').value.trim();
+  if (!title) { alert('Add the post topic or link.'); return; }
+  data.posts.unshift({
+    id: uid(), date: $('pDate').value || today(),
+    platform: $('pPlatform').value || 'LinkedIn',
+    title, impressions: 0, reactions: 0, comments: 0
+  });
+  $('pTitle').value = ''; $('pDate').value = today();
+  save();
+};
+function renderPosts() {
+  if (!data.posts.length) {
+    $('postsTable').innerHTML = '<div class="empty">No posts logged yet. Posting consistently keeps you visible to recruiters — log today&#8217;s post above.</div>';
+    return;
+  }
+  const posts = data.posts.slice().sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+  let h = '<table><tr><th>Date</th><th>Platform</th><th>Post</th><th>Impressions</th><th>Reactions</th><th>Comments</th><th></th></tr>';
+  for (const p of posts) {
+    const isUrl = /^https?:\/\//.test(p.title);
+    const title = isUrl ? '<a href="' + esc(p.title) + '" target="_blank" rel="noopener">' + esc(p.title.slice(0, 60)) + '</a>' : esc(p.title);
+    h += '<tr>' +
+      '<td class="small">' + esc(p.date) + '</td>' +
+      '<td>' + esc(p.platform) + '</td>' +
+      '<td>' + title + '</td>' +
+      ['impressions', 'reactions', 'comments'].map(f =>
+        '<td><input type="number" min="0" class="num" value="' + (+p[f] || 0) + '" onchange="editPost(\'' + p.id + '\',\'' + f + '\',this.value)"></td>').join('') +
+      '<td><button class="del" title="Delete" onclick="delPost(\'' + p.id + '\')">&times;</button></td>' +
+      '</tr>';
+  }
+  $('postsTable').innerHTML = h + '</table>';
+}
+function editPost(id, field, val) {
+  const p = data.posts.find(x => x.id === id);
+  if (p) { p[field] = Math.max(0, +val || 0); save(); }
+}
+function delPost(id) {
+  data.posts = data.posts.filter(x => x.id !== id); save();
+}
+
+/* ---------- Import (JSON paste or file) ---------- */
+$('importOpen').onclick = () => { $('importModal').classList.add('open'); setImportStatus('', ''); };
+$('importCancel').onclick = () => $('importModal').classList.remove('open');
+$('importModal').onclick = e => { if (e.target === $('importModal')) $('importModal').classList.remove('open'); };
+$('importFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { $('importText').value = r.result; setImportStatus('File loaded — press Import.', 'ok'); };
+  r.readAsText(f);
+  e.target.value = '';
+};
+function setImportStatus(msg, cls) {
+  $('importStatus').textContent = msg;
+  $('importStatus').className = cls || '';
+}
+$('importGo').onclick = () => {
+  const text = $('importText').value.trim();
+  if (!text) { setImportStatus('Paste JSON or choose a file first.', 'err'); return; }
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch (e) { setImportStatus('That is not valid JSON: ' + e.message, 'err'); return; }
+  try {
+    const { apps, posts } = normalizeImport(parsed);
+    const res = mergeImport(apps, posts);
+    if (!res.addedApps && !res.addedPosts) {
+      setImportStatus('Nothing new found (' + res.dupes + ' duplicate' + (res.dupes === 1 ? '' : 's') + ' skipped).', 'err');
+      return;
+    }
+    save();
+    setImportStatus('Imported ' + res.addedApps + ' application(s) and ' + res.addedPosts +
+      ' post(s). Skipped ' + res.dupes + ' duplicate(s).', 'ok');
+    $('importText').value = '';
+  } catch (e) {
+    setImportStatus(e.message, 'err');
+  }
+};
+
+const num = v => Array.isArray(v) ? v.length : (Math.max(0, Math.trunc(+v)) || 0);
+function toDate(v) {
+  if (!v) return '';
+  if (typeof v === 'number') return new Date(v).toISOString().slice(0, 10);
+  const s = String(v);
+  const t = Date.parse(s);
+  return isNaN(t) ? s.slice(0, 10) : new Date(t).toISOString().slice(0, 10);
+}
+function looksLikePost(o) {
+  if (!o || typeof o !== 'object') return false;
+  if (o.company || o.companyName || o.company_name || o.employer || o.jobTitle) return false;
+  return ['impressions', 'views', 'likes', 'reactions', 'text', 'commentary', 'shareCommentary', 'platform'].some(k => k in o);
+}
+function mapPost(p) {
+  return {
+    id: String(p.id || uid()),
+    date: toDate(p.date || p.createdAt || p.created_at || p.publishedAt || p.Date) || today(),
+    platform: String(p.platform || 'LinkedIn'),
+    title: String(p.title || p.text || p.commentary || p.shareCommentary || p.ShareCommentary || p.url || p.ShareLink || 'Imported post').slice(0, 500),
+    impressions: num(p.impressions ?? p.views ?? p.numViews ?? p.Impressions),
+    reactions: num(p.reactions ?? p.likes ?? p.numLikes ?? p.LikesCount),
+    comments: num(p.comments ?? p.numComments ?? p.CommentsCount)
+  };
+}
+const STAGE_WORDS = [
+  [/offer/, 4], [/final|onsite|on-site|panel/, 3],
+  [/interview/, 2], [/screen|phone|recruiter call/, 1], [/appl|saved|submit/, 0]
+];
+function mapApp(a) {
+  const status = String(a.status || a.stageName || a.Status || '').toLowerCase();
+  let stage = typeof a.stage === 'number' ? Math.min(4, Math.max(0, a.stage)) : null;
+  if (stage === null) {
+    stage = 0;
+    for (const [re, s] of STAGE_WORDS) { if (re.test(status)) { stage = s; break; } }
+  }
+  let outcome = ['rejected', 'ghosted', 'withdrawn'].includes(a.outcome) ? a.outcome : 'active';
+  if (outcome === 'active') {
+    if (/reject|declin|not selected|no longer/.test(status)) outcome = 'rejected';
+    else if (/ghost/.test(status)) outcome = 'ghosted';
+    else if (/withdr/.test(status)) outcome = 'withdrawn';
+  }
+  const recSrc = a.recruiter || (a.contact ? { name: a.contact, email: a.contactInfo || '' } : null);
+  return {
+    id: String(a.id || uid()),
+    company: String(a.company || a.companyName || a.company_name || a.employer || a['Company Name'] || '').slice(0, 200),
+    role: String(a.role || a.title || a.jobTitle || a.position || a['Job Title'] || '').slice(0, 200),
+    link: String(a.link || a.url || a.jobUrl || a['Job Url'] || ''),
+    dateApplied: toDate(a.dateApplied || a.appliedAt || a.applicationDate || a.date || a['Application Date']) || today(),
+    stage, outcome,
+    notes: String(a.notes || ''),
+    recruiter: recSrc ? {
+      name: String(recSrc.name || ''), profile: String(recSrc.profile || ''),
+      email: String(recSrc.email || ''), phone: String(recSrc.phone || ''),
+      lastContacted: toDate(recSrc.lastContacted)
+    } : null,
+    updated: toDate(a.updated) || today()
+  };
+}
+function normalizeImport(obj) {
+  let rawApps = [], rawPosts = [];
+  if (Array.isArray(obj)) {
+    obj.forEach(o => (looksLikePost(o) ? rawPosts : rawApps).push(o));
+  } else if (obj && typeof obj === 'object') {
+    rawApps = obj.apps || obj.applications || obj.jobs || [];
+    rawPosts = obj.posts || obj.updates || obj.shares || [];
+    if (!Array.isArray(rawApps)) rawApps = [];
+    if (!Array.isArray(rawPosts)) rawPosts = [];
+  } else {
+    throw new Error('Expected a JSON object or array.');
+  }
+  const apps = rawApps.map(mapApp).filter(a => a.company || a.role);
+  const posts = rawPosts.map(mapPost).filter(p => p.title);
+  if (!apps.length && !posts.length) throw new Error('No applications or posts recognized in that JSON.');
+  return { apps, posts };
+}
+function mergeImport(apps, posts) {
+  const appKey = a => (a.company + '|' + a.role).toLowerCase().trim();
+  const postKey = p => (p.date + '|' + p.title.slice(0, 60)).toLowerCase().trim();
+  const haveApps = new Set(data.apps.map(appKey));
+  const havePosts = new Set(data.posts.map(postKey));
+  const haveAppIds = new Set(data.apps.map(a => a.id));
+  const havePostIds = new Set(data.posts.map(p => p.id));
+  let addedApps = 0, addedPosts = 0, dupes = 0;
+  for (const a of apps) {
+    if (haveApps.has(appKey(a)) || haveAppIds.has(a.id)) { dupes++; continue; }
+    haveApps.add(appKey(a)); haveAppIds.add(a.id);
+    data.apps.push(a); addedApps++;
+  }
+  for (const p of posts) {
+    if (havePosts.has(postKey(p)) || havePostIds.has(p.id)) { dupes++; continue; }
+    havePosts.add(postKey(p)); havePostIds.add(p.id);
+    if (!data.platforms.includes(p.platform)) data.platforms.push(p.platform);
+    data.posts.push(p); addedPosts++;
+  }
+  return { addedApps, addedPosts, dupes };
+}
+
+/* ---------- Sankey (custom SVG) ---------- */
+function renderSankey() {
+  const apps = data.apps;
+  const wrap = $('sankeyWrap');
+  if (!apps.length) {
+    wrap.innerHTML = '<div class="empty">Your funnel will appear here once you log applications.</div>';
+    return;
+  }
+  const STAGE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316'];
+  const C = {
+    offer: '#16a34a', pipeline: '#14b8a6',
+    rejected: '#ef4444', ghosted: '#9ca3af', withdrawn: '#eab308'
+  };
+  const reached = i => apps.filter(a => a.stage >= i).length;
+
+  const nodes = {};
+  for (let i = 0; i < 4; i++) {
+    const v = reached(i);
+    if (v) nodes['st' + i] = { key: 'st' + i, label: STAGES[i], col: i, value: v, color: STAGE_COLORS[i] };
+  }
+  const term = (k, label, color) => { nodes[k] = nodes[k] || { key: k, label, col: 4, value: 0, color }; };
+  const links = [];
+
+  for (let i = 0; i < 3; i++) {
+    const v = reached(i + 1);
+    if (v) links.push({ src: 'st' + i, dst: 'st' + (i + 1), value: v, color: STAGE_COLORS[i + 1] });
+  }
+  const offers = reached(4);
+  if (offers) { term('offer', 'Offer', C.offer); nodes.offer.value = offers;
+    links.push({ src: 'st3', dst: 'offer', value: offers, color: C.offer }); }
+
+  const groups = {};
+  for (const a of apps) {
+    if (a.stage >= 4) continue;
+    const t = a.outcome === 'active' ? 'pipeline' : a.outcome;
+    const k = a.stage + '|' + t;
+    groups[k] = (groups[k] || 0) + 1;
+  }
+  const termLabels = { pipeline: 'In Pipeline', rejected: 'Rejected', ghosted: 'Ghosted', withdrawn: 'Withdrawn' };
+  const termOrder = ['offer', 'pipeline', 'withdrawn', 'ghosted', 'rejected'];
+  for (const [k, v] of Object.entries(groups)) {
+    const [i, t] = k.split('|');
+    term(t, termLabels[t], C[t]);
+    nodes[t].value += v;
+    links.push({ src: 'st' + i, dst: t, value: v, color: C[t] });
+  }
+
+  const W = 1000, H = 360, padX = 10, padY = 24, nodeW = 16, gap = 16;
+  const labelW = 150;
+  const colX = c => padX + c * ((W - 2 * padX - nodeW - labelW) / 4);
+  const cols = [[], [], [], [], []];
+  Object.values(nodes).forEach(n => cols[n.col].push(n));
+  cols[4].sort((a, b) => termOrder.indexOf(a.key) - termOrder.indexOf(b.key));
+
+  let scale = 48;
+  for (const col of cols) {
+    if (!col.length) continue;
+    const total = col.reduce((s, n) => s + n.value, 0);
+    const avail = H - 2 * padY - (col.length - 1) * gap;
+    scale = Math.min(scale, avail / total);
+  }
+  for (const col of cols) {
+    if (!col.length) continue;
+    const stackH = col.reduce((s, n) => s + n.value * scale, 0) + (col.length - 1) * gap;
+    let y = (H - stackH) / 2;
+    for (const n of col) {
+      n.x = colX(n.col); n.y = y; n.h = Math.max(n.value * scale, 3);
+      n.outY = y; n.inY = y;
+      y += n.value * scale + gap;
+    }
+  }
+
+  links.forEach(l => { l.s = nodes[l.src]; l.d = nodes[l.dst]; });
+  links.sort((a, b) => a.s.col - b.s.col || a.s.y - b.s.y || a.d.y - b.d.y);
+
+  let paths = '';
+  for (const l of links) {
+    const w = l.value * scale;
+    const x1 = l.s.x + nodeW, x2 = l.d.x;
+    const sy = l.s.outY, ty = l.d.inY;
+    l.s.outY += w; l.d.inY += w;
+    const mx = (x1 + x2) / 2;
+    paths += '<path d="M' + x1 + ',' + sy +
+      ' C' + mx + ',' + sy + ' ' + mx + ',' + ty + ' ' + x2 + ',' + ty +
+      ' L' + x2 + ',' + (ty + w) +
+      ' C' + mx + ',' + (ty + w) + ' ' + mx + ',' + (sy + w) + ' ' + x1 + ',' + (sy + w) + ' Z"' +
+      ' fill="' + l.color + '" opacity="0.38"><title>' + l.value + '</title></path>';
+  }
+  let rects = '', labels = '';
+  for (const n of Object.values(nodes)) {
+    rects += '<rect x="' + n.x + '" y="' + n.y + '" width="' + nodeW + '" height="' + n.h +
+      '" rx="4" fill="' + n.color + '"><title>' + n.label + ': ' + n.value + '</title></rect>';
+    const lx = n.x + nodeW + 6;
+    labels += '<text x="' + lx + '" y="' + (n.y + n.h / 2 + 4) + '" font-size="12.5" fill="#2a2438"' +
+      ' paint-order="stroke" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round">' +
+      esc(n.label) + ' <tspan font-weight="700" fill="' + n.color + '">' + n.value + '</tspan></text>';
+  }
+  wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:680px;display:block">' +
+    paths + rects + labels + '</svg>';
+}
+
+/* ---------- Header stats ---------- */
+function streak() {
+  const days = new Set([...data.apps.map(a => a.dateApplied), ...data.posts.map(p => p.date)]);
+  let n = 0; const d = new Date();
+  if (!days.has(d.toISOString().slice(0, 10))) d.setDate(d.getDate() - 1);
+  while (days.has(d.toISOString().slice(0, 10))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function renderHeader() {
+  const t = today();
+  const active = data.apps.filter(a => a.outcome === 'active' && a.stage < 4).length;
+  const offers = data.apps.filter(a => a.stage === 4).length;
+  const interviews = data.apps.filter(a => a.outcome === 'active' && a.stage >= 2 && a.stage < 4).length;
+  const appsToday = data.apps.filter(a => a.dateApplied === t).length;
+  const postsToday = data.posts.filter(p => p.date === t).length;
+  $('todayLine').textContent = new Date().toDateString() +
+    ' — today: ' + appsToday + ' application' + (appsToday === 1 ? '' : 's') +
+    ', ' + postsToday + ' post' + (postsToday === 1 ? '' : 's');
+  const s = [
+    ['Total applied', data.apps.length],
+    ['Active', active],
+    ['Interviewing', interviews],
+    ['Offers', offers],
+    ['Day streak', streak()]
+  ];
+  $('stats').innerHTML = s.map(([l, v]) => '<div class="stat"><b>' + v + '</b><span>' + l + '</span></div>').join('');
+}
+
+/* ---------- Tabs ---------- */
+function setTab(t) {
+  tab = t; localStorage.setItem(PREF + 'tab', t);
+  $('appsPanel').style.display = t === 'apps' ? '' : 'none';
+  $('postsPanel').style.display = t === 'posts' ? '' : 'none';
+  $('tabApps').classList.toggle('active', t === 'apps');
+  $('tabPosts').classList.toggle('active', t === 'posts');
+}
+$('tabApps').onclick = () => setTab('apps');
+$('tabPosts').onclick = () => setTab('posts');
+
+/* ---------- Backup / logout ---------- */
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jobhunt-backup-' + today() + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$('logoutBtn').onclick = async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/login.html';
+};
+
+function render() {
+  renderHeader(); renderSankey(); renderApps(); renderPosts(); renderPlatformSelect();
+}
+setTab(tab);
+render();
+boot();
+</script>
+</body>
+</html>
