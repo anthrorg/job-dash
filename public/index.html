@@ -205,7 +205,11 @@
     <div class="small" style="margin-bottom:10px">
       Paste JSON below or choose a .json file. Accepts this app's backups, plus generic lists of
       applications or posts (LinkedIn-style fields like <i>text, views, likes, companyName, title</i> are recognized).
-      Duplicates are skipped.
+      Duplicates are skipped. To generate import-ready JSON with another AI, use <b>Copy schema for AI</b>.
+    </div>
+    <div class="row" style="justify-content:flex-start; margin: -2px 0 10px; gap:12px">
+      <button class="btn ghost" id="copySchema" title="Copy an AI prompt that returns import-ready JSON">Copy schema for AI</button>
+      <a href="/import-schema.json" target="_blank" rel="noopener" class="small">view raw JSON Schema</a>
     </div>
     <textarea id="importText" placeholder='[{"date":"2026-06-01","text":"My post","views":1200,"likes":40,"comments":6}]'></textarea>
     <div class="row">
@@ -507,6 +511,56 @@ $('importGo').onclick = () => {
   } catch (e) {
     setImportStatus(e.message, 'err');
   }
+};
+
+/* ---------- Copy schema for AI (hand the import format to another LLM) ---------- */
+const AI_IMPORT_PROMPT = [
+  'You convert job-search details into JSON for the "Job Search HQ" importer.',
+  'Return ONLY a JSON object shaped like {"apps": [...], "posts": [...]}. Omit an array if it has no items. No markdown fences, no commentary.',
+  '',
+  'APPLICATION fields (one object per job application):',
+  '  company       string   REQUIRED. Employer name.',
+  '  role          string   Job title / role.',
+  '  link          string   URL of the job posting.',
+  '  dateApplied   string   "YYYY-MM-DD".',
+  '  stage         integer  0-4: 0 Applied, 1 Recruiter Screen, 2 Interview, 3 Final Round, 4 Offer.',
+  '  outcome       string   "active" | "rejected" | "ghosted" | "withdrawn" (default "active").',
+  '  notes         string   Optional free text.',
+  '  recruiter     object|null  { name, profile, email, phone, lastContacted ("YYYY-MM-DD") } or null.',
+  '',
+  'POST fields (one object per social post):',
+  '  date          string   "YYYY-MM-DD".',
+  '  platform      string   e.g. "LinkedIn" (default), "X", "Mastodon".',
+  '  title         string   REQUIRED. The post topic or a URL.',
+  '  impressions   integer  >= 0.',
+  '  reactions     integer  >= 0.',
+  '  comments      integer  >= 0.',
+  '',
+  'Example output:',
+  '{"apps":[{"company":"Acme Corp","role":"Senior Engineer","link":"https://acme.example.com/jobs/123","dateApplied":"2026-06-09","stage":2,"outcome":"active","notes":"Referred by a friend.","recruiter":{"name":"Jane Doe","profile":"https://linkedin.com/in/janedoe","email":"jane@acme.example.com","phone":"","lastContacted":"2026-06-09"}}],"posts":[{"date":"2026-06-08","platform":"LinkedIn","title":"Reflections on system design interviews","impressions":3400,"reactions":120,"comments":18}]}',
+  '',
+  'Convert the following into that JSON (omit any field you cannot determine):',
+  '',
+  '<<< paste the job posting or your details here >>>'
+].join('\n');
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (e) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta); return ok;
+    } catch (_) { return false; }
+  }
+}
+$('copySchema').onclick = async () => {
+  const ok = await copyText(AI_IMPORT_PROMPT);
+  setImportStatus(ok
+    ? 'Schema copied. Paste it into any LLM, add your job details, then paste the JSON it returns back here.'
+    : 'Could not copy automatically — open “view raw JSON Schema” and copy it manually.', ok ? 'ok' : 'err');
 };
 
 const num = v => Array.isArray(v) ? v.length : (Math.max(0, Math.trunc(+v)) || 0);
