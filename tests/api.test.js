@@ -52,14 +52,17 @@ function check(name, cond, extra) {
   const state = {
     apps: [
       { id: 'a1', company: 'Acme', role: 'PM', link: 'https://x.com', dateApplied: '2026-06-01',
-        stage: 2, outcome: 'active',
-        recruiter: { name: 'Sara', profile: 'https://li.com/sara', email: 's@x.com', phone: '555', lastContacted: '2026-06-08' },
+        stage: 2, origin: 'recruiter', outcome: 'active',
+        recruiter: { name: 'Sara', company: 'TalentCo', profile: 'https://li.com/sara', email: 's@x.com', phone: '555', lastContacted: '2026-06-08' },
         notes: 'hello', updated: '2026-06-09' },
       { id: 'a2', company: 'Beta', role: 'Dir', link: '', dateApplied: '2026-06-02',
-        stage: 99, outcome: 'bogus', recruiter: null, notes: '', updated: '2026-06-05' }
+        stage: 99, outcome: 'bogus', recruiter: null, notes: '', updated: '2026-06-05' },
+      { id: 'a3', company: 'Gamma', role: 'Eng', link: '', dateApplied: '2026-06-03',
+        stage: 0, origin: 'self', outcome: 'active', recruiter: null, notes: '', updated: '2026-06-04' }
     ],
     posts: [{ id: 'p1', date: '2026-06-09', platform: 'LinkedIn', title: 'Post', impressions: 100, reactions: -5, comments: 2 }],
-    platforms: ['LinkedIn', 'X']
+    platforms: ['LinkedIn', 'X'],
+    companies: [{ name: 'Acme', notes: 'great team' }, { name: '', notes: 'dropped because no name' }]
   };
   r = await request(app).put('/api/state').set('Cookie', cookie).send(state);
   check('PUT /api/state -> 200', r.status === 200, r.body);
@@ -68,9 +71,20 @@ function check(name, cond, extra) {
   const got = r.body;
   const a1 = got.apps.find(a => a.id === 'a1'), a2 = got.apps.find(a => a.id === 'a2');
   check('app round-trip with recruiter jsonb', !!a1 && a1.recruiter && a1.recruiter.name === 'Sara' && a1.stage === 2, a1);
-  check('sanitizer clamps stage and outcome', a2.stage === 4 && a2.outcome === 'active', a2);
+  check('sanitizer clamps stage and outcome', a2.stage === 5 && a2.outcome === 'active', a2);
   check('post round-trip + negative clamp', got.posts[0].impressions === 100 && got.posts[0].reactions === 0, got.posts);
   check('platforms saved', JSON.stringify(got.platforms) === JSON.stringify(['LinkedIn', 'X']), got.platforms);
+  check('origin + agency round-trip', a1.origin === 'recruiter' && a1.recruiter.company === 'TalentCo', a1);
+  const a3 = got.apps.find(a => a.id === 'a3');
+  check('self origin floors stage 0 -> 1', !!a3 && a3.stage === 1 && a3.origin === 'self', a3);
+  check('companies: only non-empty name saved', Array.isArray(got.companies) && got.companies.length === 1 && got.companies[0].name === 'Acme' && got.companies[0].notes === 'great team', got.companies);
+
+  // companies preserved when omitted
+  r = await request(app).put('/api/state').set('Cookie', cookie).send({ apps: state.apps, posts: state.posts, platforms: state.platforms });
+  check('PUT without companies -> 200', r.status === 200, r.body);
+  r = await request(app).get('/api/state').set('Cookie', cookie);
+  const got2 = r.body;
+  check('companies preserved when omitted from PUT', Array.isArray(got2.companies) && got2.companies.length === 1 && got2.companies[0].name === 'Acme', got2.companies);
 
   // bad payload
   r = await request(app).put('/api/state').set('Cookie', cookie).send({ apps: 'nope' });

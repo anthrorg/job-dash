@@ -29,11 +29,11 @@ app.get('/api/state', requireAuth, async (req, res, next) => {
 
 app.put('/api/state', requireAuth, async (req, res, next) => {
   try {
-    const { apps, posts, platforms } = req.body || {};
+    const { apps, posts, platforms, companies } = req.body || {};
     if (!Array.isArray(apps) || !Array.isArray(posts)) {
       return res.status(400).json({ error: 'apps and posts arrays are required' });
     }
-    await db.putState(req.session.userId, { apps, posts, platforms });
+    await db.putState(req.session.userId, { apps, posts, platforms, companies });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

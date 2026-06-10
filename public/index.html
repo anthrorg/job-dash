@@ -121,6 +121,19 @@
   a { color: var(--purple); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .small { font-size: 12px; color: var(--muted); }
+  .compname { cursor: pointer; }
+  .compname:hover { color: var(--purple); text-decoration: underline; text-decoration-style: dashed; }
+  .postlink { font-size: 12px; margin-left: 4px; }
+  .notesmark { font-size: 10px; margin-left: 3px; vertical-align: super; }
+  .complink { background: none; border: none; color: var(--purple); cursor: pointer; font-size: 12px; padding: 0; }
+  .complink:hover { text-decoration: underline; }
+  tr.approw td { cursor: pointer; }
+  tr.approw:hover td { background: #faf8ff; }
+  .editgrid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 10px; align-items: center; margin-bottom: 12px; }
+  .editgrid .lbl2 { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .editgrid input, .editgrid select, .editgrid textarea { width: 100%; }
+  .modal textarea.plain { font: inherit; height: 110px; }
+  .editrec { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
   #saveState { font-size: 12px; color: var(--muted); min-width: 60px; text-align: right; }
   #saveState.err { color: var(--red); font-weight: 600; }
 
@@ -174,7 +187,10 @@
     <input id="aRole" placeholder="Role *">
     <input id="aLink" placeholder="Posting URL (optional)">
     <input id="aDate" type="date" class="short">
-    <label class="check"><input type="checkbox" id="aRecruiter"> via recruiter</label>
+    <select id="aOrigin" class="short" title="How did this application start?">
+      <option value="self">I applied</option>
+      <option value="recruiter">Recruiter reached out</option>
+    </select>
     <button class="btn" id="addApp">Add</button>
   </div>
   <div class="filters" id="appFilters">
@@ -223,13 +239,25 @@
   </div>
 </div>
 
+<div class="overlay" id="editModal">
+  <div class="modal" id="editBody" style="border-top-color: var(--blue)"></div>
+</div>
+<div class="overlay" id="companyModal">
+  <div class="modal" style="border-top-color: var(--pink)">
+    <h2 id="companyTitle"></h2>
+    <div class="small" style="margin-bottom:8px">Shared notes for this company — the same note appears anywhere this company shows up.</div>
+    <textarea id="companyNotes" class="plain" placeholder="Notes about this company…"></textarea>
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="companyClose">Close</button></div>
+  </div>
+</div>
+
 <script>
 'use strict';
 const PREF = 'jobhunt_pref_';
-const STAGES = ['Applied', 'Recruiter Screen', 'Interview', 'Final Round', 'Offer'];
+const STAGES = ['Recruiter Outreach', 'Applied', 'Recruiter Screen', 'Interview', 'Final Round', 'Offer'];
 const EXITS = { rejected: 'Rejected', ghosted: 'Ghosted', withdrawn: 'Withdrawn' };
 
-let data = { apps: [], posts: [], platforms: ['LinkedIn'] };
+let data = { apps: [], posts: [], platforms: ['LinkedIn'], companies: [] };
 
 const $ = id => document.getElementById(id);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -277,7 +305,8 @@ async function boot() {
     data = {
       apps: Array.isArray(d.apps) ? d.apps : [],
       posts: Array.isArray(d.posts) ? d.posts : [],
-      platforms: Array.isArray(d.platforms) && d.platforms.length ? d.platforms : ['LinkedIn']
+      platforms: Array.isArray(d.platforms) && d.platforms.length ? d.platforms : ['LinkedIn'],
+      companies: Array.isArray(d.companies) ? d.companies : []
     };
     render();
   } catch (e) {
@@ -291,24 +320,27 @@ $('addApp').onclick = () => {
   const company = $('aCompany').value.trim(), role = $('aRole').value.trim();
   if (!company || !role) { alert('Company and role are required.'); return; }
   const id = uid();
+  const origin = $('aOrigin').value === 'recruiter' ? 'recruiter' : 'self';
   data.apps.unshift({
     id, company, role,
     link: $('aLink').value.trim(),
     dateApplied: $('aDate').value || today(),
-    stage: 0, outcome: 'active',
-    recruiter: $('aRecruiter').checked ? { name: '', profile: '', email: '', phone: '', lastContacted: '' } : null,
+    origin,
+    stage: origin === 'recruiter' ? 0 : 1,
+    outcome: 'active',
+    recruiter: origin === 'recruiter' ? { name: '', company: '', profile: '', email: '', phone: '', lastContacted: '' } : null,
     notes: '', updated: today()
   });
-  if ($('aRecruiter').checked) expanded.add(id);
+  if (origin === 'recruiter') expanded.add(id);
   $('aCompany').value = $('aRole').value = $('aLink').value = '';
-  $('aDate').value = today(); $('aRecruiter').checked = false;
+  $('aDate').value = today(); $('aOrigin').value = 'self';
   save();
 };
 
 function statusValue(a) { return a.outcome === 'active' ? 'stage:' + a.stage : 'exit:' + a.outcome; }
 function statusClass(a) {
   if (a.outcome !== 'active') return 's-' + a.outcome;
-  return a.stage === 4 ? 's-offer' : 's-active';
+  return a.stage === 5 ? 's-offer' : 's-active';
 }
 function setStatus(id, val) {
   const a = data.apps.find(x => x.id === id); if (!a) return;
@@ -331,7 +363,11 @@ function recCell(a) {
   } else if (a.outcome === 'active' && !r.lastContacted) {
     warn = '<br><span class="contact-warn">never contacted</span>';
   }
-  return '<button class="recbtn has" onclick="toggleRec(\'' + a.id + '\')" title="Open recruiter details">&#9734; ' + name + '</button>' + warn;
+  let agencyBtn = '';
+  if (r.company) {
+    agencyBtn = ' <button class="complink" onclick="openAgencyByApp(\'' + a.id + '\')" title="Agency notes">@ ' + esc(r.company) + '</button>' + notesMark(r.company);
+  }
+  return '<button class="recbtn has" onclick="toggleRec(\'' + a.id + '\')" title="Open recruiter details">&#9734; ' + name + '</button>' + agencyBtn + warn;
 }
 
 function recDetailRow(a) {
@@ -339,6 +375,7 @@ function recDetailRow(a) {
   return '<tr class="recrow"><td colspan="7"><div class="recform">' +
     '<span class="lbl">Recruiter</span>' +
     '<input class="short" placeholder="Name" value="' + esc(r.name) + '" onchange="editRec(\'' + a.id + '\',\'name\',this.value)">' +
+    '<input class="short" placeholder="Agency / company" value="' + esc(r.company) + '" onchange="editRec(\'' + a.id + '\',\'company\',this.value)">' +
     '<input placeholder="Profile page (LinkedIn etc.)" value="' + esc(r.profile) + '" onchange="editRec(\'' + a.id + '\',\'profile\',this.value)">' +
     '<input class="short" placeholder="Email" value="' + esc(r.email) + '" onchange="editRec(\'' + a.id + '\',\'email\',this.value)">' +
     '<input class="short" placeholder="Phone" value="' + esc(r.phone) + '" onchange="editRec(\'' + a.id + '\',\'phone\',this.value)">' +
@@ -365,17 +402,20 @@ function renderApps() {
   }
   let h = '<table><tr><th>Company / Role</th><th>Applied</th><th>Status</th><th>Recruiter</th><th>Last update</th><th>Notes</th><th></th></tr>';
   for (const a of apps) {
-    const name = a.link
-      ? '<a href="' + esc(a.link) + '" target="_blank" rel="noopener"><b>' + esc(a.company) + '</b></a>'
-      : '<b>' + esc(a.company) + '</b>';
+    const nameCell = '<b class="compname" title="Company notes" onclick="openCompanyByApp(\'' + a.id + '\')">' + esc(a.company) + '</b>' +
+      notesMark(a.company) +
+      (a.link ? ' <a class="postlink" href="' + esc(a.link) + '" target="_blank" rel="noopener" title="Open job posting">&#8599;</a>' : '');
     const d = daysAgo(a.updated || a.dateApplied);
     const stale = a.outcome === 'active' && d >= 7 ? ' <span class="stale">stale — follow up?</span>' : '';
-    let opts = STAGES.map((s, i) =>
-      '<option value="stage:' + i + '"' + (statusValue(a) === 'stage:' + i ? ' selected' : '') + '>' + s + '</option>').join('');
+    const min = a.origin === 'recruiter' ? 0 : 1;
+    let opts = '';
+    for (let i = min; i < STAGES.length; i++) {
+      opts += '<option value="stage:' + i + '"' + (statusValue(a) === 'stage:' + i ? ' selected' : '') + '>' + STAGES[i] + '</option>';
+    }
     opts += Object.entries(EXITS).map(([k, v]) =>
       '<option value="exit:' + k + '"' + (statusValue(a) === 'exit:' + k ? ' selected' : '') + '>' + v + '</option>').join('');
-    h += '<tr>' +
-      '<td>' + name + '<br><span class="small">' + esc(a.role) + '</span></td>' +
+    h += '<tr class="approw" onclick="rowClick(event, \'' + a.id + '\')">' +
+      '<td>' + nameCell + '<br><span class="small">' + esc(a.role) + '</span></td>' +
       '<td class="small">' + esc(a.dateApplied) + '</td>' +
       '<td><select class="status ' + statusClass(a) + '" onchange="setStatus(\'' + a.id + '\', this.value)">' + opts + '</select></td>' +
       '<td>' + recCell(a) + '</td>' +
@@ -394,12 +434,70 @@ function editApp(id, field, val) {
 function delApp(id) {
   const a = data.apps.find(x => x.id === id);
   if (a && confirm('Delete ' + a.company + ' — ' + a.role + '?')) {
-    data.apps = data.apps.filter(x => x.id !== id); save();
+    data.apps = data.apps.filter(x => x.id !== id);
+    if (editId === id) { $('editModal').classList.remove('open'); editId = null; }
+    save();
   }
 }
+let editId = null;
+function openEdit(id) { editId = id; renderEditModal(); $('editModal').classList.add('open'); }
+function closeEdit() { $('editModal').classList.remove('open'); editId = null; render(); }
+function setOrigin(id, val) {
+  const a = data.apps.find(x => x.id === id); if (!a) return;
+  a.origin = val === 'recruiter' ? 'recruiter' : 'self';
+  if (a.origin === 'self' && a.stage < 1) a.stage = 1;
+  if (a.origin === 'recruiter' && !a.recruiter) a.recruiter = { name: '', company: '', profile: '', email: '', phone: '', lastContacted: '' };
+  a.updated = today();
+  save(); renderEditModal();
+}
+function renderEditModal() {
+  const a = data.apps.find(x => x.id === editId);
+  if (!a) { closeEdit(); return; }
+  const fld = (label, html) => '<span class="lbl2">' + label + '</span><span>' + html + '</span>';
+  const inp = (field, val, type) => '<input type="' + (type || 'text') + '" value="' + esc(val) + '" onchange="editApp(\'' + a.id + '\',\'' + field + '\',this.value)">';
+  const min = a.origin === 'recruiter' ? 0 : 1;
+  let opts = '';
+  for (let i = min; i < STAGES.length; i++) opts += '<option value="stage:' + i + '"' + (statusValue(a) === 'stage:' + i ? ' selected' : '') + '>' + STAGES[i] + '</option>';
+  opts += Object.entries(EXITS).map(([k, v]) => '<option value="exit:' + k + '"' + (statusValue(a) === 'exit:' + k ? ' selected' : '') + '>' + v + '</option>').join('');
+  const r = a.recruiter;
+  let h = '<h2>' + esc(a.company) + (a.role ? ' — ' + esc(a.role) : '') + '</h2>';
+  h += '<div class="editgrid">' +
+    fld('Company', inp('company', a.company)) +
+    fld('Role', inp('role', a.role)) +
+    fld('Posting URL', inp('link', a.link)) +
+    fld('Date', inp('dateApplied', a.dateApplied, 'date')) +
+    fld('Origin', '<select onchange="setOrigin(\'' + a.id + '\', this.value)">' +
+      '<option value="self"' + (a.origin !== 'recruiter' ? ' selected' : '') + '>I applied</option>' +
+      '<option value="recruiter"' + (a.origin === 'recruiter' ? ' selected' : '') + '>Recruiter reached out</option></select>') +
+    fld('Status', '<select class="status ' + statusClass(a) + '" onchange="setStatus(\'' + a.id + '\', this.value); renderEditModal()">' + opts + '</select>') +
+    fld('Notes', '<textarea class="plain" placeholder="Interview prep, comp details, impressions…" onchange="editApp(\'' + a.id + '\',\'notes\',this.value)">' + esc(a.notes) + '</textarea>') +
+    '</div>';
+  h += '<div class="editrec">';
+  if (r) {
+    const ri = (field, val, ph) => '<input placeholder="' + ph + '" value="' + esc(val) + '" onchange="editRec(\'' + a.id + '\',\'' + field + '\',this.value)">';
+    h += '<div class="recform"><span class="lbl">Recruiter</span>' +
+      ri('name', r.name, 'Name') + ri('company', r.company, 'Agency / company') +
+      ri('profile', r.profile, 'Profile page') + ri('email', r.email, 'Email') + ri('phone', r.phone, 'Phone') +
+      '<span class="lbl">Last contacted</span>' +
+      '<input type="date" class="short" value="' + esc(r.lastContacted) + '" onchange="editRec(\'' + a.id + '\',\'lastContacted\',this.value)">' +
+      '<button class="reclink" onclick="editRec(\'' + a.id + '\',\'lastContacted\',\'' + today() + '\'); renderEditModal()">contacted today</button>' +
+      '<button class="reclink" onclick="removeRecruiter(\'' + a.id + '\'); renderEditModal()">remove recruiter</button></div>';
+  } else {
+    h += '<button class="recbtn" onclick="addRecruiter(\'' + a.id + '\'); renderEditModal()">+ add recruiter</button>';
+  }
+  h += '</div>';
+  h += '<div class="row" style="justify-content:space-between; margin-top:14px"><span>' +
+    '<button class="btn ghost" onclick="openCompanyByApp(\'' + a.id + '\')">Notes on ' + esc(String(a.company).slice(0, 40)) + '</button>' +
+    (r && r.company ? ' <button class="btn ghost" onclick="openAgencyByApp(\'' + a.id + '\')">Notes on ' + esc(String(r.company).slice(0, 40)) + '</button>' : '') +
+    '</span><span>' +
+    '<button class="btn ghost" style="color:var(--red)" onclick="delApp(\'' + a.id + '\')">Delete</button> ' +
+    '<button class="btn" onclick="closeEdit()">Close</button></span></div>';
+  $('editBody').innerHTML = h;
+}
+
 function addRecruiter(id) {
   const a = data.apps.find(x => x.id === id); if (!a) return;
-  a.recruiter = { name: '', profile: '', email: '', phone: '', lastContacted: '' };
+  a.recruiter = { name: '', company: '', profile: '', email: '', phone: '', lastContacted: '' };
   expanded.add(id);
   save();
 }
@@ -417,6 +515,35 @@ function editRec(id, field, val) {
   const a = data.apps.find(x => x.id === id);
   if (a && a.recruiter) { a.recruiter[field] = val; save(); }
 }
+
+function rowClick(e, id) {
+  if (e.target.closest('a, select, input, button, textarea, label, .compname, .notesmark')) return;
+  openEdit(id);
+}
+
+/* ---------- Company notes helpers ---------- */
+const compKey = s => String(s || '').trim().toLowerCase();
+function getCompany(name) { return data.companies.find(c => compKey(c.name) === compKey(name)); }
+function hasNotes(name) { const c = getCompany(name); return !!(c && String(c.notes).trim()); }
+function notesMark(name) { return hasNotes(name) ? '<span class="notesmark" title="has notes">&#128221;</span>' : ''; }
+function setCompanyNotes(name, notes) {
+  let c = getCompany(name);
+  if (!c) { c = { name: String(name).trim(), notes: '' }; data.companies.push(c); }
+  c.notes = notes;
+}
+let companyName = null;
+function openCompanyNotes(name) {
+  name = String(name || '').trim();
+  if (!name) return;
+  companyName = name;
+  $('companyTitle').textContent = name;
+  $('companyNotes').value = (getCompany(name) || {}).notes || '';
+  $('companyModal').classList.add('open');
+}
+function closeCompany() { $('companyModal').classList.remove('open'); companyName = null; render(); }
+function openCompanyByApp(id) { const a = data.apps.find(x => x.id === id); if (a) openCompanyNotes(a.company); }
+function openAgencyByApp(id) { const a = data.apps.find(x => x.id === id); if (a && a.recruiter) openCompanyNotes(a.recruiter.company); }
+
 document.querySelectorAll('#appFilters button').forEach(b => b.onclick = () => {
   appFilter = b.dataset.f; localStorage.setItem(PREF + 'filter', appFilter); renderApps();
 });
@@ -498,15 +625,16 @@ $('importGo').onclick = () => {
   try { parsed = JSON.parse(text); }
   catch (e) { setImportStatus('That is not valid JSON: ' + e.message, 'err'); return; }
   try {
-    const { apps, posts } = normalizeImport(parsed);
-    const res = mergeImport(apps, posts);
-    if (!res.addedApps && !res.addedPosts) {
+    const { apps, posts, companies } = normalizeImport(parsed);
+    const res = mergeImport(apps, posts, companies);
+    if (!res.addedApps && !res.addedPosts && !res.addedCompanies) {
       setImportStatus('Nothing new found (' + res.dupes + ' duplicate' + (res.dupes === 1 ? '' : 's') + ' skipped).', 'err');
       return;
     }
     save();
-    setImportStatus('Imported ' + res.addedApps + ' application(s) and ' + res.addedPosts +
-      ' post(s). Skipped ' + res.dupes + ' duplicate(s).', 'ok');
+    setImportStatus('Imported ' + res.addedApps + ' application(s), ' + res.addedPosts +
+      ' post(s)' + (res.addedCompanies ? ', ' + res.addedCompanies + ' company note(s)' : '') +
+      '. Skipped ' + res.dupes + ' duplicate(s).', 'ok');
     $('importText').value = '';
   } catch (e) {
     setImportStatus(e.message, 'err');
@@ -516,17 +644,18 @@ $('importGo').onclick = () => {
 /* ---------- Copy schema for AI (hand the import format to another LLM) ---------- */
 const AI_IMPORT_PROMPT = [
   'You convert job-search details into JSON for the "Job Search HQ" importer.',
-  'Return ONLY a JSON object shaped like {"apps": [...], "posts": [...]}. Omit an array if it has no items. No markdown fences, no commentary.',
+  'Return ONLY a JSON object shaped like {"apps": [...], "posts": [...], "companies": [...]}. Omit an array if it has no items. No markdown fences, no commentary.',
   '',
   'APPLICATION fields (one object per job application):',
   '  company       string   REQUIRED. Employer name.',
   '  role          string   Job title / role.',
   '  link          string   URL of the job posting.',
   '  dateApplied   string   "YYYY-MM-DD".',
-  '  stage         integer  0-4: 0 Applied, 1 Recruiter Screen, 2 Interview, 3 Final Round, 4 Offer.',
+  '  origin        string   "self" if the candidate applied first (default); "recruiter" if a recruiter reached out first.',
+  '  stage         integer  0-5: 0 Recruiter Outreach (recruiter-led, pre-application), 1 Applied, 2 Recruiter Screen, 3 Interview, 4 Final Round, 5 Offer. Use 0 only with origin "recruiter".',
   '  outcome       string   "active" | "rejected" | "ghosted" | "withdrawn" (default "active").',
   '  notes         string   Optional free text.',
-  '  recruiter     object|null  { name, profile, email, phone, lastContacted ("YYYY-MM-DD") } or null.',
+  '  recruiter     object|null  { name, company (agency they work for), profile, email, phone, lastContacted ("YYYY-MM-DD") } or null.',
   '',
   'POST fields (one object per social post):',
   '  date          string   "YYYY-MM-DD".',
@@ -536,8 +665,12 @@ const AI_IMPORT_PROMPT = [
   '  reactions     integer  >= 0.',
   '  comments      integer  >= 0.',
   '',
+  'COMPANY fields (one object per company you have notes on; shared across applications):',
+  '  name          string   REQUIRED. Company or agency name.',
+  '  notes         string   Free-text notes about the company.',
+  '',
   'Example output:',
-  '{"apps":[{"company":"Acme Corp","role":"Senior Engineer","link":"https://acme.example.com/jobs/123","dateApplied":"2026-06-09","stage":2,"outcome":"active","notes":"Referred by a friend.","recruiter":{"name":"Jane Doe","profile":"https://linkedin.com/in/janedoe","email":"jane@acme.example.com","phone":"","lastContacted":"2026-06-09"}}],"posts":[{"date":"2026-06-08","platform":"LinkedIn","title":"Reflections on system design interviews","impressions":3400,"reactions":120,"comments":18}]}',
+  '{"apps":[{"company":"Acme Corp","role":"Senior Engineer","link":"https://acme.example.com/jobs/123","dateApplied":"2026-06-09","origin":"recruiter","stage":3,"outcome":"active","notes":"Referred by a friend.","recruiter":{"name":"Jane Doe","company":"TalentCo","profile":"https://linkedin.com/in/janedoe","email":"jane@talentco.example.com","phone":"","lastContacted":"2026-06-09"}}],"posts":[{"date":"2026-06-08","platform":"LinkedIn","title":"Reflections on system design interviews","impressions":3400,"reactions":120,"comments":18}],"companies":[{"name":"Acme Corp","notes":"Series C, ~400 people, platform org is hiring."}]}',
   '',
   'Convert the following into that JSON (omit any field you cannot determine):',
   '',
@@ -588,14 +721,16 @@ function mapPost(p) {
   };
 }
 const STAGE_WORDS = [
-  [/offer/, 4], [/final|onsite|on-site|panel/, 3],
-  [/interview/, 2], [/screen|phone|recruiter call/, 1], [/appl|saved|submit/, 0]
+  [/offer/, 5], [/final|onsite|on-site|panel/, 4],
+  [/interview/, 3], [/screen|phone|recruiter call/, 2],
+  [/outreach|sourced|reached out|recruiter contacted/, 0],
+  [/appl|saved|submit/, 1]
 ];
 function mapApp(a) {
   const status = String(a.status || a.stageName || a.Status || '').toLowerCase();
-  let stage = typeof a.stage === 'number' ? Math.min(4, Math.max(0, a.stage)) : null;
+  let stage = typeof a.stage === 'number' ? Math.min(5, Math.max(0, a.stage)) : null;
   if (stage === null) {
-    stage = 0;
+    stage = 1;
     for (const [re, s] of STAGE_WORDS) { if (re.test(status)) { stage = s; break; } }
   }
   let outcome = ['rejected', 'ghosted', 'withdrawn'].includes(a.outcome) ? a.outcome : 'active';
@@ -604,6 +739,7 @@ function mapApp(a) {
     else if (/ghost/.test(status)) outcome = 'ghosted';
     else if (/withdr/.test(status)) outcome = 'withdrawn';
   }
+  const origin = a.origin === 'recruiter' || stage === 0 ? 'recruiter' : 'self';
   const recSrc = a.recruiter || (a.contact ? { name: a.contact, email: a.contactInfo || '' } : null);
   return {
     id: String(a.id || uid()),
@@ -611,10 +747,11 @@ function mapApp(a) {
     role: String(a.role || a.title || a.jobTitle || a.position || a['Job Title'] || '').slice(0, 200),
     link: String(a.link || a.url || a.jobUrl || a['Job Url'] || ''),
     dateApplied: toDate(a.dateApplied || a.appliedAt || a.applicationDate || a.date || a['Application Date']) || today(),
-    stage, outcome,
+    origin, stage, outcome,
     notes: String(a.notes || ''),
     recruiter: recSrc ? {
-      name: String(recSrc.name || ''), profile: String(recSrc.profile || ''),
+      name: String(recSrc.name || ''), company: String(recSrc.company || recSrc.agency || ''),
+      profile: String(recSrc.profile || ''),
       email: String(recSrc.email || ''), phone: String(recSrc.phone || ''),
       lastContacted: toDate(recSrc.lastContacted)
     } : null,
@@ -622,30 +759,36 @@ function mapApp(a) {
   };
 }
 function normalizeImport(obj) {
-  let rawApps = [], rawPosts = [];
+  let rawApps = [], rawPosts = [], rawCompanies = [];
   if (Array.isArray(obj)) {
     obj.forEach(o => (looksLikePost(o) ? rawPosts : rawApps).push(o));
   } else if (obj && typeof obj === 'object') {
     rawApps = obj.apps || obj.applications || obj.jobs || [];
     rawPosts = obj.posts || obj.updates || obj.shares || [];
+    rawCompanies = obj.companies || [];
     if (!Array.isArray(rawApps)) rawApps = [];
     if (!Array.isArray(rawPosts)) rawPosts = [];
+    if (!Array.isArray(rawCompanies)) rawCompanies = [];
   } else {
     throw new Error('Expected a JSON object or array.');
   }
   const apps = rawApps.map(mapApp).filter(a => a.company || a.role);
   const posts = rawPosts.map(mapPost).filter(p => p.title);
-  if (!apps.length && !posts.length) throw new Error('No applications or posts recognized in that JSON.');
-  return { apps, posts };
+  const companies = rawCompanies.map(c => ({
+    name: String((c && c.name) || '').slice(0, 200).trim(),
+    notes: String((c && c.notes) || '').slice(0, 8000)
+  })).filter(c => c.name);
+  if (!apps.length && !posts.length && !companies.length) throw new Error('No applications, posts, or companies recognized in that JSON.');
+  return { apps, posts, companies };
 }
-function mergeImport(apps, posts) {
+function mergeImport(apps, posts, companies) {
   const appKey = a => (a.company + '|' + a.role).toLowerCase().trim();
   const postKey = p => (p.date + '|' + p.title.slice(0, 60)).toLowerCase().trim();
   const haveApps = new Set(data.apps.map(appKey));
   const havePosts = new Set(data.posts.map(postKey));
   const haveAppIds = new Set(data.apps.map(a => a.id));
   const havePostIds = new Set(data.posts.map(p => p.id));
-  let addedApps = 0, addedPosts = 0, dupes = 0;
+  let addedApps = 0, addedPosts = 0, addedCompanies = 0, dupes = 0;
   for (const a of apps) {
     if (haveApps.has(appKey(a)) || haveAppIds.has(a.id)) { dupes++; continue; }
     haveApps.add(appKey(a)); haveAppIds.add(a.id);
@@ -657,7 +800,11 @@ function mergeImport(apps, posts) {
     if (!data.platforms.includes(p.platform)) data.platforms.push(p.platform);
     data.posts.push(p); addedPosts++;
   }
-  return { addedApps, addedPosts, dupes };
+  for (const c of (companies || [])) {
+    if (getCompany(c.name)) { dupes++; continue; }
+    data.companies.push(c); addedCompanies++;
+  }
+  return { addedApps, addedPosts, addedCompanies, dupes };
 }
 
 /* ---------- Sankey (custom SVG) ---------- */
@@ -668,51 +815,42 @@ function renderSankey() {
     wrap.innerHTML = '<div class="empty">Your funnel will appear here once you log applications.</div>';
     return;
   }
-  const STAGE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316'];
-  const C = {
-    offer: '#16a34a', pipeline: '#14b8a6',
-    rejected: '#ef4444', ghosted: '#9ca3af', withdrawn: '#eab308'
-  };
-  const reached = i => apps.filter(a => a.stage >= i).length;
-
-  const nodes = {};
-  for (let i = 0; i < 4; i++) {
-    const v = reached(i);
-    if (v) nodes['st' + i] = { key: 'st' + i, label: STAGES[i], col: i, value: v, color: STAGE_COLORS[i] };
-  }
-  const term = (k, label, color) => { nodes[k] = nodes[k] || { key: k, label, col: 4, value: 0, color }; };
-  const links = [];
-
-  for (let i = 0; i < 3; i++) {
-    const v = reached(i + 1);
-    if (v) links.push({ src: 'st' + i, dst: 'st' + (i + 1), value: v, color: STAGE_COLORS[i + 1] });
-  }
-  const offers = reached(4);
-  if (offers) { term('offer', 'Offer', C.offer); nodes.offer.value = offers;
-    links.push({ src: 'st3', dst: 'offer', value: offers, color: C.offer }); }
-
-  const groups = {};
-  for (const a of apps) {
-    if (a.stage >= 4) continue;
-    const t = a.outcome === 'active' ? 'pipeline' : a.outcome;
-    const k = a.stage + '|' + t;
-    groups[k] = (groups[k] || 0) + 1;
-  }
-  const termLabels = { pipeline: 'In Pipeline', rejected: 'Rejected', ghosted: 'Ghosted', withdrawn: 'Withdrawn' };
+  const STAGE_COLORS = ['#0ea5e9', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316'];
+  const C = { offer: '#16a34a', pipeline: '#14b8a6', rejected: '#ef4444', ghosted: '#9ca3af', withdrawn: '#eab308' };
+  const termLabels = { offer: 'Offer', pipeline: 'In Pipeline', rejected: 'Rejected', ghosted: 'Ghosted', withdrawn: 'Withdrawn' };
   const termOrder = ['offer', 'pipeline', 'withdrawn', 'ghosted', 'rejected'];
-  for (const [k, v] of Object.entries(groups)) {
-    const [i, t] = k.split('|');
-    term(t, termLabels[t], C[t]);
-    nodes[t].value += v;
-    links.push({ src: 'st' + i, dst: t, value: v, color: C[t] });
+  const TERM_COL = 5;
+
+  // Each app walks its own path through the stage columns, then exits to a
+  // terminal. Recruiter-led apps enter at Recruiter Outreach and skip the
+  // Recruiter Screen column unless they are currently sitting in it.
+  const nodes = {}, linkMap = {};
+  const stageNode = i => nodes['st' + i] || (nodes['st' + i] = { key: 'st' + i, label: STAGES[i], col: i, value: 0, color: STAGE_COLORS[i] });
+  const termNode = t => nodes[t] || (nodes[t] = { key: t, label: termLabels[t], col: TERM_COL, value: 0, color: C[t] });
+  const addLink = (src, dst, color) => {
+    const k = src + '>' + dst;
+    (linkMap[k] || (linkMap[k] = { src, dst, value: 0, color })).value++;
+  };
+  for (const a of apps) {
+    const path = [];
+    for (let i = a.origin === 'recruiter' ? 0 : 1; i <= Math.min(a.stage, 4); i++) {
+      if (i === 2 && a.origin === 'recruiter' && a.stage > 2) continue;
+      path.push(i);
+    }
+    const t = a.stage >= 5 ? 'offer' : (a.outcome === 'active' ? 'pipeline' : a.outcome);
+    for (const i of path) stageNode(i).value++;
+    for (let j = 0; j + 1 < path.length; j++) addLink('st' + path[j], 'st' + path[j + 1], STAGE_COLORS[path[j + 1]]);
+    termNode(t).value++;
+    if (path.length) addLink('st' + path[path.length - 1], t, C[t]);
   }
+  const links = Object.values(linkMap);
 
   const W = 1000, H = 360, padX = 10, padY = 24, nodeW = 16, gap = 16;
   const labelW = 150;
-  const colX = c => padX + c * ((W - 2 * padX - nodeW - labelW) / 4);
-  const cols = [[], [], [], [], []];
+  const colX = c => padX + c * ((W - 2 * padX - nodeW - labelW) / TERM_COL);
+  const cols = [[], [], [], [], [], []];
   Object.values(nodes).forEach(n => cols[n.col].push(n));
-  cols[4].sort((a, b) => termOrder.indexOf(a.key) - termOrder.indexOf(b.key));
+  cols[TERM_COL].sort((a, b) => termOrder.indexOf(a.key) - termOrder.indexOf(b.key));
 
   let scale = 48;
   for (const col of cols) {
@@ -757,7 +895,7 @@ function renderSankey() {
       ' paint-order="stroke" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round">' +
       esc(n.label) + ' <tspan font-weight="700" fill="' + n.color + '">' + n.value + '</tspan></text>';
   }
-  wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:680px;display:block">' +
+  wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:760px;display:block">' +
     paths + rects + labels + '</svg>';
 }
 
@@ -771,16 +909,16 @@ function streak() {
 }
 function renderHeader() {
   const t = today();
-  const active = data.apps.filter(a => a.outcome === 'active' && a.stage < 4).length;
-  const offers = data.apps.filter(a => a.stage === 4).length;
-  const interviews = data.apps.filter(a => a.outcome === 'active' && a.stage >= 2 && a.stage < 4).length;
+  const active = data.apps.filter(a => a.outcome === 'active' && a.stage < 5).length;
+  const offers = data.apps.filter(a => a.stage === 5).length;
+  const interviews = data.apps.filter(a => a.outcome === 'active' && a.stage >= 3 && a.stage < 5).length;
   const appsToday = data.apps.filter(a => a.dateApplied === t).length;
   const postsToday = data.posts.filter(p => p.date === t).length;
   $('todayLine').textContent = new Date().toDateString() +
     ' — today: ' + appsToday + ' application' + (appsToday === 1 ? '' : 's') +
     ', ' + postsToday + ' post' + (postsToday === 1 ? '' : 's');
   const s = [
-    ['Total applied', data.apps.length],
+    ['Total applied', data.apps.filter(a => a.stage >= 1).length],
     ['Active', active],
     ['Interviewing', interviews],
     ['Offers', offers],
@@ -813,6 +951,11 @@ $('logoutBtn').onclick = async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
   location.href = '/login.html';
 };
+
+$('companyNotes').oninput = () => { if (companyName !== null) { setCompanyNotes(companyName, $('companyNotes').value); markDirty(); } };
+$('companyClose').onclick = closeCompany;
+$('companyModal').onclick = e => { if (e.target === $('companyModal')) closeCompany(); };
+$('editModal').onclick = e => { if (e.target === $('editModal')) closeEdit(); };
 
 function render() {
   renderHeader(); renderSankey(); renderApps(); renderPosts(); renderPlatformSelect();
