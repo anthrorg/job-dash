@@ -116,6 +116,8 @@
   .stale { color: var(--amber); font-size: 11.5px; font-weight: 600; }
   .empty { color: var(--muted); text-align: center; padding: 30px 10px; }
   #sankeyWrap { width: 100%; overflow-x: auto; }
+  #sankeyWrap path.flow { opacity: .5; transition: opacity .18s ease; }
+  #sankeyWrap path.flow:hover { opacity: .82; }
   svg text { font-family: inherit; }
   .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   a { color: var(--purple); text-decoration: none; }
@@ -845,58 +847,168 @@ function renderSankey() {
   }
   const links = Object.values(linkMap);
 
-  const W = 1000, H = 360, padX = 10, padY = 24, nodeW = 16, gap = 16;
-  const labelW = 150;
+  links.forEach(l => { l.s = nodes[l.src]; l.d = nodes[l.dst]; });
+
+  /* Geometry: slim ribbons (max 12px per app), columns laid out by the
+     weighted center of their flows instead of independent centering, so
+     each route keeps its own lane and the skip-screen ribbon reads clearly. */
+  const W = 1000, H = 330, padX = 10, nodeW = 10, gap = 14, labelW = 150;
+  const topY = 44, botY = H - 16;
   const colX = c => padX + c * ((W - 2 * padX - nodeW - labelW) / TERM_COL);
   const cols = [[], [], [], [], [], []];
-  Object.values(nodes).forEach(n => cols[n.col].push(n));
+  Object.values(nodes).forEach(n => { n.x = colX(n.col); cols[n.col].push(n); });
   cols[TERM_COL].sort((a, b) => termOrder.indexOf(a.key) - termOrder.indexOf(b.key));
 
-  let scale = 48;
+  let scale = 12;
   for (const col of cols) {
     if (!col.length) continue;
     const total = col.reduce((s, n) => s + n.value, 0);
-    const avail = H - 2 * padY - (col.length - 1) * gap;
+    const avail = botY - topY - (col.length - 1) * gap;
     scale = Math.min(scale, avail / total);
   }
   for (const col of cols) {
-    if (!col.length) continue;
-    const stackH = col.reduce((s, n) => s + n.value * scale, 0) + (col.length - 1) * gap;
-    let y = (H - stackH) / 2;
-    for (const n of col) {
-      n.x = colX(n.col); n.y = y; n.h = Math.max(n.value * scale, 3);
-      n.outY = y; n.inY = y;
-      y += n.value * scale + gap;
+    let y = topY;
+    for (const n of col) { n.fh = n.value * scale; n.y = y; y += n.fh + gap; }
+  }
+  const center = n => n.y + n.fh / 2;
+  const settle = col => { // keep order, remove overlaps, stay inside [topY, botY]
+    if (!col.length) return;
+    for (let i = 1; i < col.length; i++) col[i].y = Math.max(col[i].y, col[i - 1].y + col[i - 1].fh + gap);
+    const last = col[col.length - 1];
+    if (last.y + last.fh > botY) {
+      last.y = botY - last.fh;
+      for (let i = col.length - 2; i >= 0; i--) col[i].y = Math.min(col[i].y, col[i + 1].y - gap - col[i].fh);
+    }
+    if (col[0].y < topY) {
+      col[0].y = topY;
+      for (let i = 1; i < col.length; i++) col[i].y = Math.max(col[i].y, col[i - 1].y + col[i - 1].fh + gap);
+    }
+  };
+  for (let pass = 0; pass < 3; pass++) { // barycenter relaxation
+    for (let c = 1; c <= TERM_COL; c++) {
+      for (const n of cols[c]) {
+        let ws = 0, ys = 0;
+        for (const l of links) if (l.d === n) { ws += l.value; ys += l.value * center(l.s); }
+        if (ws) n.y = ys / ws - n.fh / 2;
+      }
+      settle(cols[c]);
+    }
+    for (let c = TERM_COL - 1; c >= 0; c--) {
+      for (const n of cols[c]) {
+        let ws = 0, ys = 0;
+        for (const l of links) if (l.s === n) { ws += l.value; ys += l.value * center(l.d); }
+        if (ws) n.y = ys / ws - n.fh / 2;
+      }
+      settle(cols[c]);
     }
   }
+  { // hug the top so the card can shrink to fit sparse data
+    let mn = Infinity;
+    for (const n of Object.values(nodes)) mn = Math.min(mn, n.y);
+    for (const n of Object.values(nodes)) n.y += topY - mn;
+  }
+  let contentBot = topY;
+  for (const n of Object.values(nodes)) { // node pill, never thinner than 10px
+    n.rh = Math.max(n.fh, 10);
+    n.ry = n.y - (n.rh - n.fh) / 2;
+    n.outY = n.y; n.inY = n.y;
+    contentBot = Math.max(contentBot, n.ry + n.rh);
+  }
 
-  links.forEach(l => { l.s = nodes[l.src]; l.d = nodes[l.dst]; });
-  links.sort((a, b) => a.s.col - b.s.col || a.s.y - b.s.y || a.d.y - b.d.y);
+  // Stack ribbon attachment points so flows fan out without crossing.
+  // Two passes: first a rough order from node centers, then re-stack both
+  // ends using each ribbon's actual route (its nearest waypoint or far end).
+  const assignDy = ord => {
+    for (const n of Object.values(nodes)) n.inY = n.y;
+    for (const l of links.slice().sort(ord)) { l.dy = l.d.inY; l.d.inY += l.value * scale; }
+  };
+  const assignSy = ord => {
+    for (const n of Object.values(nodes)) n.outY = n.y;
+    for (const l of links.slice().sort(ord)) { l.sy = l.s.outY; l.s.outY += l.value * scale; }
+  };
+  // Waypoints let a long ribbon dodge the node pills of columns it crosses
+  // (e.g. the recruiter skip-screen route, or exits that bypass Applied).
+  const waypoints = l => {
+    const w = Math.max(l.value * scale, 2);
+    const x1 = l.s.x + nodeW, x2 = l.d.x, pts = [];
+    for (let c = l.s.col + 1; c < l.d.col; c++) {
+      if (!cols[c].length) continue;
+      const x = colX(c) + nodeW / 2;
+      let y = l.sy + (l.dy - l.sy) * ((x - x1) / (x2 - x1));
+      for (const b of cols[c]) { // dodge whichever side is closer
+        if (y + w > b.ry - 7 && y < b.ry + b.rh + 7) {
+          const up = (y + w) - (b.ry - 7), down = (b.ry + b.rh + 7) - y;
+          y += up <= down ? -up : down;
+        }
+      }
+      pts.push({ x, y: Math.max(26, Math.min(botY + 6 - w, y)) });
+    }
+    return pts;
+  };
+  assignDy((a, b) => center(a.s) - center(b.s) || a.s.col - b.s.col);
+  assignSy((a, b) => a.dy - b.dy);
+  links.forEach(l => { l.wp = waypoints(l); });
+  const nearDst = l => l.wp.length ? l.wp[l.wp.length - 1].y : l.sy;
+  const nearSrc = l => l.wp.length ? l.wp[0].y : l.dy;
+  assignDy((a, b) => nearDst(a) - nearDst(b));
+  assignSy((a, b) => nearSrc(a) - nearSrc(b));
+  links.forEach(l => { l.wp = waypoints(l); });
+  let Hf = contentBot; // final viewBox height hugs the drawn content
+  links.forEach(l => l.wp.forEach(p => { Hf = Math.max(Hf, p.y + Math.max(l.value * scale, 2)); }));
+  Hf = Math.round(Hf) + 16;
 
-  let paths = '';
-  for (const l of links) {
-    const w = l.value * scale;
+  // Ribbon outline: smooth horizontal-tangent segments through the waypoints.
+  const ribbon = (pts, w) => {
+    let d = 'M' + pts[0].x + ',' + pts[0].y;
+    for (let i = 1; i < pts.length; i++) {
+      const m = (pts[i - 1].x + pts[i].x) / 2;
+      d += ' C' + m + ',' + pts[i - 1].y + ' ' + m + ',' + pts[i].y + ' ' + pts[i].x + ',' + pts[i].y;
+    }
+    d += ' L' + pts[pts.length - 1].x + ',' + (pts[pts.length - 1].y + w);
+    for (let i = pts.length - 2; i >= 0; i--) {
+      const m = (pts[i].x + pts[i + 1].x) / 2;
+      d += ' C' + m + ',' + (pts[i + 1].y + w) + ' ' + m + ',' + (pts[i].y + w) + ' ' + pts[i].x + ',' + (pts[i].y + w);
+    }
+    return d + ' Z';
+  };
+  let defs = '', paths = '';
+  links.forEach((l, i) => {
+    const w = Math.max(l.value * scale, 2);
     const x1 = l.s.x + nodeW, x2 = l.d.x;
-    const sy = l.s.outY, ty = l.d.inY;
-    l.s.outY += w; l.d.inY += w;
-    const mx = (x1 + x2) / 2;
-    paths += '<path d="M' + x1 + ',' + sy +
-      ' C' + mx + ',' + sy + ' ' + mx + ',' + ty + ' ' + x2 + ',' + ty +
-      ' L' + x2 + ',' + (ty + w) +
-      ' C' + mx + ',' + (ty + w) + ' ' + mx + ',' + (sy + w) + ' ' + x1 + ',' + (sy + w) + ' Z"' +
-      ' fill="' + l.color + '" opacity="0.38"><title>' + l.value + '</title></path>';
+    const pts = [{ x: x1, y: l.sy }].concat(l.wp, [{ x: x2, y: l.dy }]);
+    defs += '<linearGradient id="sg' + i + '" gradientUnits="userSpaceOnUse" x1="' + x1 + '" y1="0" x2="' + x2 + '" y2="0">' +
+      '<stop offset="0" stop-color="' + l.s.color + '"/><stop offset="1" stop-color="' + l.d.color + '"/></linearGradient>';
+    paths += '<path class="flow" d="' + ribbon(pts, w) + '" fill="url(#sg' + i + ')">' +
+      '<title>' + esc(l.s.label) + ' &#8594; ' + esc(l.d.label) + ': ' + l.value + '</title></path>';
+  });
+
+  // Column guides + stage headers keep the structure legible even when a
+  // column is empty; node labels carry just the count (terminals keep names).
+  let guides = '', headers = '';
+  for (let c = 0; c <= TERM_COL; c++) {
+    const gx = colX(c) + nodeW / 2;
+    guides += '<line x1="' + gx + '" y1="' + (topY - 12) + '" x2="' + gx + '" y2="' + (Hf - 8) +
+      '" stroke="#e9e4f5" stroke-width="2" stroke-dasharray="1 6" stroke-linecap="round"/>';
+    const anchor = c === 0 ? 'start' : 'middle';
+    headers += '<text x="' + (c === 0 ? padX : gx) + '" y="20" text-anchor="' + anchor + '" font-size="10" font-weight="700"' +
+      ' fill="#a39db4" letter-spacing="1">' + esc((c === TERM_COL ? 'Outcome' : STAGES[c]).toUpperCase()) + '</text>';
   }
   let rects = '', labels = '';
   for (const n of Object.values(nodes)) {
-    rects += '<rect x="' + n.x + '" y="' + n.y + '" width="' + nodeW + '" height="' + n.h +
-      '" rx="4" fill="' + n.color + '"><title>' + n.label + ': ' + n.value + '</title></rect>';
-    const lx = n.x + nodeW + 6;
-    labels += '<text x="' + lx + '" y="' + (n.y + n.h / 2 + 4) + '" font-size="12.5" fill="#2a2438"' +
-      ' paint-order="stroke" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round">' +
-      esc(n.label) + ' <tspan font-weight="700" fill="' + n.color + '">' + n.value + '</tspan></text>';
+    rects += '<rect x="' + (n.x - 1) + '" y="' + (n.ry - 1) + '" width="' + (nodeW + 2) + '" height="' + (n.rh + 2) +
+      '" rx="6" fill="' + n.color + '" stroke="#ffffff" stroke-width="1.5"><title>' + esc(n.label) + ': ' + n.value + '</title></rect>';
+    if (n.col === TERM_COL) {
+      labels += '<text x="' + (n.x + nodeW + 8) + '" y="' + (n.ry + n.rh / 2 + 4) + '" font-size="12.5" fill="#2a2438"' +
+        ' paint-order="stroke" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round">' +
+        esc(n.label) + ' <tspan font-weight="700" fill="' + n.color + '">' + n.value + '</tspan></text>';
+    } else {
+      labels += '<text x="' + (n.x + nodeW / 2) + '" y="' + (n.ry - 7) + '" text-anchor="middle" font-size="12" font-weight="700"' +
+        ' fill="' + n.color + '" paint-order="stroke" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round">' +
+        n.value + '</text>';
+    }
   }
-  wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="min-width:760px;display:block">' +
-    paths + rects + labels + '</svg>';
+  wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + Hf + '" width="100%" style="min-width:760px;display:block">' +
+    '<defs>' + defs + '</defs>' + guides + headers + paths + rects + labels + '</svg>';
 }
 
 /* ---------- Header stats ---------- */
